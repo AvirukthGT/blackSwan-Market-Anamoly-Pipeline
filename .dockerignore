@@ -1,0 +1,16 @@
+# Ignore the virtual environment (heavy and useless inside Docker)
+.venv/
+venv/
+__pycache__/
+
+# Ignore Airflow logs and temporary files (The Cause of the Crash!)
+airflow/logs/
+airflow/dags/__pycache__/
+airflow/plugins/__pycache__/
+
+# Ignore Git history
+.git/
+.gitignore
+
+# Ignore local environment keys (Safety)
+.env

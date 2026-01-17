@@ -1,2 +1,9 @@
 .venv/
 .env
+# Ignore Airflow Logs and Temp Data
+airflow/logs/
+airflow/dags/__pycache__/
+airflow/plugins/__pycache__/
+
+# Ignore specific system files
+*.log
