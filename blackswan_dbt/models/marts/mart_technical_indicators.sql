@@ -12,17 +12,31 @@ sentiment AS (
 ),
 
 -- 1. Segregate & Aggregate Sentiment per Symbol/Hour
--- FIX: Changed 'event_time' to 'producer_time' because that is what we called it in stg_social_sentiment
-sentiment_daily AS (
+-- IMPROVED: Content-based matching instead of generic sector broadcasting
+distinct_symbols AS (
+    SELECT DISTINCT symbol FROM prices
+),
+
+sentiment_mapped AS (
+    SELECT
+        s.producer_time,
+        s.sentiment,
+        s.upvotes,
+        d.symbol
+    FROM sentiment s
+    JOIN distinct_symbols d
+      -- Simple keyword matching using standard ILIKE
+      ON s.content ILIKE '%' || d.symbol || '%'
+      OR (d.symbol = 'BTC' AND s.content ILIKE '%Bitcoin%')
+      OR (d.symbol = 'ETH' AND s.content ILIKE '%Ethereum%')
+),
+
+sentiment_hourly AS (
     SELECT
         DATE_TRUNC('hour', producer_time) as hour_bucket,
-        CASE
-            WHEN subreddit IN ('bitcoin', 'crypto', 'ethereum') THEN 'CRYPTO'
-            ELSE 'STOCK'
-        END as sentiment_type,
-        AVG(sentiment) as avg_sentiment_score,
-        SUM(upvotes) as total_attention
-    FROM sentiment
+        symbol,
+        AVG(sentiment) as avg_sentiment_score
+    FROM sentiment_mapped
     GROUP BY 1, 2
 ),
 
@@ -72,7 +86,7 @@ SELECT
     -- Calculate % Change (Momentum)
     (b.close_price - b.prev_price) / NULLIF(b.prev_price, 0) as price_change_pct,
 
-    -- Join Sentiment (Using loose join on time and type for now)
+    -- Join Sentiment (Specific to Symbol now)
     COALESCE(s.avg_sentiment_score, 0) as market_sentiment,
 
     -- 4. THE BLACK SWAN SIGNAL
@@ -84,6 +98,6 @@ SELECT
     END as black_swan_signal
 
 FROM base_indicators b
-LEFT JOIN sentiment_daily s
+LEFT JOIN sentiment_hourly s
     ON DATE_TRUNC('hour', b.event_time) = s.hour_bucket
-    AND b.asset_type = s.sentiment_type
+    AND b.symbol = s.symbol

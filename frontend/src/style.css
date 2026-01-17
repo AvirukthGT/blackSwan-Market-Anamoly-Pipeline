@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+:root {
+  /* --- PALETTE --- */
+  --bg-black: #121212;
+  --text-white: #ffffff;
+  --text-gray: #a0a0a0;
+  --border-white: #ffffff;
+
+  /* --- ACCENTS --- */
+  --accent-primary: #00ff9d;
+  /* Retro Neo-Green */
+  --accent-secondary: #ff00ff;
+  /* Hot Pink */
+  --accent-danger: #ff4d4d;
+  /* Red */
+
+  /* --- FONTS --- */
+  --font-heading: 'Rubik Mono One', sans-serif;
+  --font-body: 'Space Mono', monospace;
+}
+
+[data-theme="light"] {
+  --bg-black: #f4f4f0;
+  /* Vintage Paper White */
+  --text-white: #121212;
+  --text-gray: #555555;
+  --border-white: #000000;
+  --accent-primary: #008855;
+  /* Darker Green */
+  --accent-secondary: #aa00aa;
+  /* Darker Pink */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-black);
+  color: var(--text-white);
+  overflow-x: hidden;
+}
+
+button {
+  font-family: var(--font-heading);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-white);
+  border-radius: 5px;
+  border: 2px solid var(--bg-black);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}

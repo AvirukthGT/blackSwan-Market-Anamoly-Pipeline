@@ -21,6 +21,9 @@ SELECT
     symbol,
     event_time,
     close_price,
+    sma_50,
+    sma_200,
+    rsi_14,
     'Combined_Signals' as strategy_name,
     -- STRATEGY 1: GOLDEN CROSS (Long Term Trend)
     -- Signal: Buy when SMA50 goes above SMA200. Sell when it drops below.
