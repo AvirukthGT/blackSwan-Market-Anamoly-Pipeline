@@ -1,4 +1,4 @@
-# Black Swan Detection Engine 🦢📉
+# Black Swan Detection Engine 
 
 ![Vue.js](https://img.shields.io/badge/Frontend-Vue.js_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -93,6 +93,8 @@ graph LR
     F -->|Marts| G(FastAPI Backend)
     G -->|JSON| H[Vue.js Terminal]
 ```
+
+<img width="2449" height="3038" alt="data_model - Page 12" src="https://github.com/user-attachments/assets/6ab18263-6213-4023-a2d1-176c7c83deb5" />
 
 1.  **Extract**: Producers poll external sources (Yahoo Finance, Reddit, AlphaVantage).
 2.  **Buffer**: Messages are serialized and pushed to Kafka topics (`market_prices`, `market_news`).
