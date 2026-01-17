@@ -9,35 +9,42 @@ WITH source AS (
 
 renamed AS (
     SELECT
-        -- 1. UNIQUE ID
-        -- URLs are excellent unique keys for news (duplicates usually have same URL)
         src:link::STRING as news_id,
-
-        -- 2. IDENTIFIERS
         src:symbol::STRING as symbol,
-
-        -- 3. CONTENT
         src:title::STRING as title,
         src:summary::STRING as summary,
         src:link::STRING as url,
-
-        -- 4. TIMESTAMPS
-        -- A. Published Time (RSS Format)
-        -- Snowflake's TRY_TO_TIMESTAMP is smart enough to parse "Sat, 17 Jan..." automatically
         TRY_TO_TIMESTAMP(src:published::STRING) as published_at,
-
-        -- B. Producer Time (Apply the NUMBER(38,6) fix again!)
         TO_TIMESTAMP(src:ingestion_timestamp::NUMBER(38, 6)) as producer_time,
-
-        -- C. Warehouse Time
         ingest_timestamp as warehouse_time
-
     FROM source
+),
+
+deduplicated AS (
+    SELECT
+        *,
+        -- Rank duplicates: if two rows have the same news_id,
+        -- the one with the later producer_time gets row_num = 1
+        ROW_NUMBER() OVER (
+            PARTITION BY news_id
+            ORDER BY producer_time DESC
+        ) as row_num
+    FROM renamed
+    {% if is_incremental() %}
+      -- Only look at rows newer than what we already have
+      WHERE warehouse_time > (SELECT max(warehouse_time) FROM {{ this }})
+    {% endif %}
 )
 
-SELECT * FROM renamed
-
-{% if is_incremental() %}
-  -- Only process new rows since the last run
-  WHERE warehouse_time > (SELECT max(warehouse_time) FROM {{ this }})
-{% endif %}
+-- Final select: filter out the duplicates (where row_num > 1)
+SELECT
+    news_id,
+    symbol,
+    title,
+    summary,
+    url,
+    published_at,
+    producer_time,
+    warehouse_time
+FROM deduplicated
+WHERE row_num = 1

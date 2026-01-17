@@ -12,6 +12,7 @@ x-airflow-common: &airflow-common
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/blackswan_dbt:/opt/airflow/blackswan_dbt
   depends_on:
     - postgres
 

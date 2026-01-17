@@ -7,3 +7,5 @@ airflow/plugins/__pycache__/
 
 # Ignore specific system files
 *.log
+
+blackswan_dbt/profiles.yml

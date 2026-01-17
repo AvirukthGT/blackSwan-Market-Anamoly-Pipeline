@@ -1,21 +1,22 @@
-# --- Kafka Streaming & Event Handling ---
-confluent-kafka==2.3.0
-fastavro==1.9.3
+# --- Streaming & Snowflake ---
+confluent-kafka>=2.3.0
+fastavro>=1.9.3
+snowflake-connector-python[pandas]>=3.6.0
+snowflake-sqlalchemy>=1.5.0
 
-# --- Snowflake Data Warehouse ---
-snowflake-connector-python==3.7.0
-snowflake-connector-python[pandas]==3.7.0
-snowflake-sqlalchemy==1.5.1
+# --- API & Data ---
+requests>=2.31.0
+tenacity>=8.2.0
+pandas>=1.5.0
+numpy>=1.23.0
 
-# --- API & Data Ingestion ---
-requests==2.31.0
-tenacity==8.2.3
-
-# --- Data Transformation & Utility ---
-pandas==2.1.4
-numpy==1.26.3
-python-dotenv==1.0.1
-boto3==1.34.0
+# --- Project Specific ---
+python-dotenv>=1.0.0
+boto3>=1.34.0
 yfinance>=0.2.40
-feedparser==6.0.10
-praw==7.7.1
+feedparser>=6.0.10
+praw>=7.7.1
+dbt-snowflake>=1.7.0
+
+dbt-core>=1.7.0
+dbt-snowflake>=1.7.0
