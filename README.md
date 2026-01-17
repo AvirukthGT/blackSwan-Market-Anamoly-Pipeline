@@ -241,11 +241,11 @@ cd frontend
 npm install
 npm run dev
 ```
-Visit **http://localhost:5173**. You are now live. 🟢
+
 
 ---
 
-## Future Roadmap �
+## Future Roadmap 
 
 *   **v2.0 - Machine Learning**: Implementation of an LSTM (Long Short-Term Memory) model to predict price direction 10 minutes into the future based on order book depth.
 *   **v2.1 - Social Sentiment V2**: Direct integration with the Twitter API (X) to track "Cashtags" ($AAPL, $BTC) in real-time.
