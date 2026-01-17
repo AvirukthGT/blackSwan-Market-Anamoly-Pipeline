@@ -1,0 +1,27 @@
+version: 2
+
+sources:
+  - name: blackswan_raw
+    description: "Raw data ingested from Kafka via Snowpipe. Contains JSON data in a VARIANT column."
+    database: BLACKSWAN_DB
+    schema: RAW
+    tables:
+      - name: RAW_STOCK_PRICES
+        description: "Streaming stock and crypto price data from Yahoo Finance."
+        columns:
+          - name: src
+            description: "Raw JSON payload containing price, symbol, timestamp."
+          - name: ingest_timestamp
+            description: "When Snowpipe loaded this row."
+
+      - name: RAW_MARKET_NEWS
+        description: "RSS feed news items from Yahoo Finance."
+        columns:
+          - name: src
+            description: "Raw JSON payload containing headline, link, summary."
+
+      - name: RAW_SOCIAL_SENTIMENT
+        description: "Streaming comments and posts from Reddit (or Simulator)."
+        columns:
+          - name: src
+            description: "Raw JSON payload containing text, author, subreddit, score."
