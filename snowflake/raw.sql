@@ -1,0 +1,73 @@
+-- Table for Stock Prices
+CREATE OR REPLACE TABLE RAW_STOCK_PRICES (
+    ingest_timestamp TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
+    src VARIANT
+);
+
+-- Table for Market News
+CREATE OR REPLACE TABLE RAW_MARKET_NEWS (
+    ingest_timestamp TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
+    src VARIANT
+);
+
+-- Table for Reddit/Sentiment
+CREATE OR REPLACE TABLE RAW_SOCIAL_SENTIMENT (
+    ingest_timestamp TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
+    src VARIANT
+);
+
+-- Backfill
+
+-- 1. Backfill Stock Prices
+COPY INTO RAW_STOCK_PRICES (src)
+FROM @MY_S3_STAGE
+PATTERN='.*stock_prices/.*'
+FILE_FORMAT = JSON_FORMAT
+ON_ERROR = 'CONTINUE';
+
+-- 2. Backfill Market News
+COPY INTO RAW_MARKET_NEWS (src)
+FROM @MY_S3_STAGE
+PATTERN='.*market_news/.*'
+FILE_FORMAT = JSON_FORMAT
+ON_ERROR = 'CONTINUE';
+
+-- 3. Backfill Social Sentiment
+COPY INTO RAW_SOCIAL_SENTIMENT (src)
+FROM @MY_S3_STAGE
+PATTERN='.*social_sentiment/.*'
+FILE_FORMAT = JSON_FORMAT
+ON_ERROR = 'CONTINUE';
+
+-- 1. Pipe for Prices
+CREATE OR REPLACE PIPE PIPE_STOCK_PRICES AUTO_INGEST = TRUE AS
+COPY INTO RAW_STOCK_PRICES (src)
+FROM @MY_S3_STAGE
+PATTERN='.*stock_prices/.*'  -- Only files in the stock_prices folder
+ON_ERROR = 'CONTINUE';
+
+-- 2. Pipe for News
+CREATE OR REPLACE PIPE PIPE_MARKET_NEWS AUTO_INGEST = TRUE AS
+COPY INTO RAW_MARKET_NEWS (src)
+FROM @MY_S3_STAGE
+PATTERN='.*market_news/.*'
+ON_ERROR = 'CONTINUE';
+
+-- 3. Pipe for Reddit
+CREATE OR REPLACE PIPE PIPE_SOCIAL_SENTIMENT AUTO_INGEST = TRUE AS
+COPY INTO RAW_SOCIAL_SENTIMENT (src)
+FROM @MY_S3_STAGE
+PATTERN='.*social_sentiment/.*'
+ON_ERROR = 'CONTINUE';
+
+SHOW PIPES;
+
+-- Check the status of the Stock Prices pipe
+SELECT SYSTEM$PIPE_STATUS('PIPE_STOCK_PRICES');
+
+SELECT count(*) FROM RAW_STOCK_PRICES
+
+select * from RAW_MARKET_NEWS limit 10;
+
+DESCRIBE TABLE BLACKSWAN_DB.STAGING.STG_STOCK_PRICES; 
+-- (Or whatever staging table mart_algo_signals pulls from)
