@@ -143,38 +143,170 @@ blackSwan/
 
 ## Component Deep Dive
 
-### 1. Data Ingestion (Producers)
-The `producers/` directory contains independent Python scripts designed for fault tolerance.
-*   **`stream_prices.py`**: Connects to the **Yahoo Finance WebSocket** (or polling API) to fetch real-time OHLCV (Open, High, Low, Close, Volume) data for a watchlist of assets (e.g., AAPL, NVDA, BTC-USD). It normalizes the data into a standard JSON schema before emitting to Kafka.
-*   **`stream_news.py`**: Polls RSS feeds and News APIs for breaking headlines. It assigns a preliminary "Impact Score" based on keyword matching (e.g., "Bankruptcy" = High Negative, "Merger" = High Positive).
+## Ingestion Layer (Producers)
 
-### 2. Streaming Layer (Kafka)
-We use a single-node Kafka cluster (via Docker) with Zookeeper coordination.
-*   **Topics**:
-    *   `market_prices`: 3 partitions, key=Symbol. Ensures all updates for "AAPL" go to the same partition, preserving order.
-    *   `market_news`: 1 partition. Lower volume, global ordering is preferred.
-*   **Why Kafka?**: In a crash, data volume spikes 100x. Kafka acts as a shock absorber, preventing the database from locking up under write pressure.
+The ingestion layer is the **"Bronze"** stage of your Medallion Architecture. Its primary responsibility is to capture data from source APIs and land it into Kafka as quickly and reliably as possible, without changing the original content.
 
-### 3. Data Warehousing (Snowflake)
-We leverage Snowflake's architecture for its near-zero maintenance and auto-scaling.
-*   **Bronze Schema**: Stores raw JSON variants. We use the `VARIANT` column type to ingest semi-structured data without defining a rigid schema upfront (Schema-on-Read).
-*   **Silver Schema**: Flattens the JSON into columnar tables (`PRICE`, `TIMESTAMP`, `SYMBOL`). Handles de-duplication of retry messages.
+### Core Principles
 
-### 4. Transformation (dbt)
-The "Brain" of the operation. dbt allows us to write modular SQL models that build upon each other.
-*   **`stg_stock_prices`**: Cleans raw data, casts timestamps to UTC.
-*   **`int_technical_indicators`**: Uses SQL Window Functions to calculate:
-    *   **RSI (Relative Strength Index)**: Detects Overbought (>70) or Oversold (<30) conditions.
-    *   **SMA (Simple Moving Average)**: Calculates 50-day and 200-day averages to identify Golden Crosses.
-*   **`mart_signals`**: The final output table. It joins Sentiment + Technicals to generate "Buy", "Sell", or "Hold" signals.
+* **Immutability**: We store the raw JSON exactly as it arrives. This allows us to "replay" the data later if our transformation logic changes.
+* **Decoupling**: The producers don't care if Snowflake is down or if dbt is running. They only care about handing the data off to Kafka.
 
-### 5. The Terminal (Frontend)
-The user interface is a purposeful departure from the sterile, white-background finance apps of today.
-*   **Aesthetic philosophy**: **"The BlackSwan Times"**. High-contrast, monochromatic Newspaper style mixed with neon indicators. It evokes the urgency of a 1929 trading floor.
-*   **Tech**:
-    *   **Components**: `Signals.vue` (Split-pane dashboard), `AdvancedChartModal.vue` (Deep dive analysis).
-    *   **Interactivity**: Clicking any signal opens a detailed modal with correlating news and price action.
-    *   **Responsiveness**: Fully responsive grid layout using CSS Grid and Flexbox.
+---
+
+### 1. `stream_prices.py`: The Market Ticker
+
+This producer handles high-velocity numerical data. It requires low latency to ensure signals are generated on the most recent "ticks."
+
+* **Technical Logic**:
+* **WebSocket Integration**: Instead of polling every second (which is inefficient), it uses a persistent WebSocket to receive "pushed" updates from a provider like Yahoo Finance or Alpaca.
+* **Schema Enforcement**: Before sending to Kafka, it wraps the raw tick in a standard envelope containing a `producer_timestamp` and a `source_id`.
+
+
+* **Fault Tolerance**:
+* **Acknowlegements (`acks='all'`)**: The producer waits for Kafka to confirm the data is replicated across all brokers before moving to the next tick.
+* **Exponential Backoff**: If the API connection drops, the script waits (1s, 2s, 4s...) to reconnect, preventing "hammering" the provider's server.
+
+<img width="1265" height="718" alt="image" src="https://github.com/user-attachments/assets/c6b2001e-b4a8-4763-a4f5-69b992eeb990" />
+
+
+
+### 2. `stream_news.py`: The Contextual Feed
+
+This producer handles unstructured text data. Unlike price ticks, news arrives in irregular "bursts."
+
+* **Technical Logic**:
+* **RSS/API Polling**: Polls feeds every 5–10 minutes. It extracts the `headline`, `summary`, and the `URL`.
+* **URL Hashing**: To avoid sending the same "Breaking News" story multiple times (since RSS feeds often repeat items), it hashes the URL. If the hash has been sent in the last 24 hours, it skips the record.
+
+
+* **Metadata Enrichment**:
+* **Preliminary Scoring**: Uses a lightweight Python library (like `TextBlob` or a simple regex dictionary) to tag the news with an initial sentiment score (e.g., "Positive" for "Merger", "Negative" for "Loss") before it even hits the warehouse.
+
+<img width="1268" height="715" alt="image" src="https://github.com/user-attachments/assets/01879905-4652-4c53-9939-4a6d308cc1ac" />
+
+
+
+### 3. `stream_reddit.py`: The Social Pulse
+
+This producer captures the "noise" of the retail market by monitoring specific community discussions.
+
+* **Technical Logic**:
+* **PRAW Wrapper**: Uses the Python Reddit API Wrapper to "stream" new comments from subreddits like `r/wallstreetbets`.
+* **Keyword Filtering**: Only comments mentioning your "Watchlist" tickers (e.g., $TSLA, $NVDA) are sent to Kafka to keep the data volume manageable.
+
+<img width="1266" height="716" alt="image" src="https://github.com/user-attachments/assets/908e9c67-9a2c-4632-aaca-bda7db25ab80" />
+
+---
+The **Streaming Layer** is the high-speed bridge of your architecture. It takes the data from your local Python producers and delivers it to Snowflake with sub-second latency.
+
+While the producers handle the "pushing," the streaming layer handles the **buffering, persistence, and delivery guarantees**.
+
+---
+
+## The Streaming Layer (Kafka & Snowpipe)
+
+### 1. The Central Backbone: Apache Kafka
+
+Kafka acts as a **buffer** between your fast-moving producers and Snowflake. This "decouples" the systems—if your producers spike in activity or if Snowflake goes into a maintenance window, Kafka holds the data safely in a queue.
+
+* **Topics**: We use specific topics for different data streams (e.g., `stock_prices`, `market_news`, `reddit_sentiment`).
+* **Partitions**: These allow us to parallelize data. For a "Black Swan" engine, having multiple partitions for `stock_prices` ensures we can handle high-volume symbols like TSLA or NVDA without bottlenecking.
+* **Retention**: We typically keep 24–48 hours of raw data in Kafka. This is our safety net—if a dbt model fails, we can "replay" the streaming data from the last 24 hours to fix it.
+<img width="1264" height="714" alt="image" src="https://github.com/user-attachments/assets/1b40c51e-85aa-463c-bfdc-9c660601485f" />
+
+(S3-CONSUMER SENDS THE DATA TO S3)
+
+<img width="1271" height="696" alt="image" src="https://github.com/user-attachments/assets/06f7e150-29cb-435d-ae0a-b4c5005d6e7f" />
+
+
+
+### 2. The Bridge: Snowflake Kafka Connector
+
+Instead of writing custom Python code to "upload" to Snowflake, we use the **Official Snowflake Kafka Sink Connector**. It runs inside your Docker environment (Kafka Connect) and continuously monitors your topics.
+
+* **Snowpipe Streaming API**: Your project uses the modern **Streaming SDK** rather than traditional bulk loading. This writes rows directly to Snowflake tables without creating temporary files, reducing latency from minutes to **sub-5 seconds**.
+* **Exactly-Once Delivery**: The connector tracks "Offset Tokens." If the Docker container restarts, it asks Snowflake, *"What was the last message you received?"* and resumes exactly from that point, ensuring no data is lost or duplicated.
+
+
+
+
+### 3. The Landing Zone: Snowflake "Bronze" Tables
+
+The streaming layer delivers data into what we call **Transient Tables** in Snowflake.
+
+* **VARIANT Columns**: We don't worry about the schema here. The connector dumps the entire JSON payload into a single column of type `VARIANT`. This prevents the pipeline from breaking if an API adds a new field.
+* **Metadata Enrichment**: The connector automatically adds columns like `RECORD_METADATA` (containing the Kafka offset and partition) and `INSERTED_AT`, which are critical for the deduplication logic we'll use in the next step (dbt).
+
+<img width="1211" height="869" alt="image" src="https://github.com/user-attachments/assets/f9ea8c77-a99b-4107-aa6a-ac3033d0f044" />
+
+
+---
+
+The images you provided show the **Transformation** and **Storage** layers of your project in action, specifically how dbt models materialize as structured tables within Snowflake's data warehouse environment.
+
+---
+
+## The dbt Transformation Layer
+
+This image highlights the development of your **Gold/Marts** layer using the dbt Power User extension in VS Code.
+
+* **Logic Development**: You are defining the `mart_algo_signals.sql` model, which pulls data from an intermediate technical indicators model.
+* **Window Functions**: The `crossover_setup` CTE uses the `LAG()` function to compare current market data (like MACD or RSI) against previous values. This is the "brain" of the engine that identifies specific market crossovers.
+* **Query Results**: The bottom panel shows the successful output of your transformation. It produces a clear table of trading signals (`HOLD`, `SELL_OVERBOUGHT`, etc.) mapped to specific timestamps and prices, ready to be served by your FastAPI backend.
+* **Clustering**: The `config` block at the top shows `cluster_by=['strategy_name', 'symbol', 'event_time']`, which tells Snowflake how to physically organize the data for maximum query speed.
+
+<img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/34313b03-8128-436e-bbd8-a33942696c2e" />
+(Social Sentiment from news)
+<img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/c62b2e5f-b878-4eaa-a0cf-7c9441eff002" />
+(Stock prices)
+<img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/f36c3fad-5f77-46dd-b2bc-f5888268a21e" />
+(Reddit Comments)
+---
+
+## The Snowflake Storage Layer
+
+This image shows your **Medallion Architecture** fully implemented inside the Snowflake UI.
+
+* **Raw Layer (Bronze)**: The SQL script in the worksheet defines your landing tables (`RAW_STOCK_PRICES`, `RAW_MARKET_NEWS`). These tables use the `VARIANT` data type to store the raw JSON payloads from your Kafka producers.
+* **Staging Layer (Silver)**: Highlighted in the sidebar, these tables (`STG_MARKET_NEWS`, etc.) contain cleaned and casted data. You can see the schema results showing standard columns like `EVENT_ID`, `SYMBOL`, and `CLOSE_PRICE` as proper `VARCHAR` and `FLOAT` types.
+* **Marts Layer (Gold)**: The top red box shows your business-ready tables. This includes `MART_ALGO_SIGNALS` and `MART_NEWS_Impact`, which are the final curated datasets your Vue.js dashboard will visualize.
+* **Role & Warehouse**: The top-right shows you are operating as `ACCOUNTADMIN` using a `COMPUTE_WH (X-Small)` warehouse, which is efficient for managing these dbt transformations.
+
+---
+## Orchestration Layer (Apache Airflow)
+
+Apache Airflow is the **"Central Nervous System"** of your Black Swan Sentiment Engine. It provides a programmatic framework to author, schedule, and monitor your entire data workflow as Python code.
+
+### The Architecture of a DAG
+
+In Airflow, you define your pipeline as a **Directed Acyclic Graph (DAG)**. This ensures that your tasks—from starting producers to triggering dbt models—follow a strictly defined order without circular loops.
+
+* **Scheduler (The Brain)**: Continuously monitors your DAG directory and decides which tasks need to run based on their schedule (e.g., every minute) or dependency status.
+* **Workers & Executors (The Muscles)**: Responsible for the actual execution of tasks. In your Docker setup, these workers carry out the `dbt run` or `python stream_prices.py` commands.
+* **Webserver (The Dashboard)**: Provides a rich UI to visualize task status, view logs, and manually re-trigger failed runs.
+
+
+### Orchestrating dbt with Airflow
+
+Since dbt does not have a built-in scheduler, Airflow fills this gap by triggering your transformations once the ingestion layer has finished landing data in Snowflake.
+
+* **Task Dependencies**: You can chain tasks together so that `run_marts` only begins if `run_staging` completes successfully.
+* **Granular Control**: Using frameworks like **Astronomer Cosmos**, your dbt project is parsed into individual Airflow tasks. This allows you to see exactly which model failed (e.g., `mart_algo_signals`) and retry only that specific part of the graph.
+* **Data Quality Checks**: Airflow can be configured to run `dbt test` after every run, preventing broken or incomplete data from reaching your final Gold layer.
+
+
+
+### Resilience and Alerting
+
+One of Airflow's greatest strengths in a production-grade pipeline is its ability to handle "real-world" errors.
+
+* **Retry Logic**: If a Snowflake connection blips during a transformation, Airflow automatically retries the task after a set delay (e.g., 5 minutes).
+* **Monitoring**: Through the UI, you gain full visibility into the execution time of each task, helping you identify performance bottlenecks in your SQL models.
+
+**Would you like me to help you draft the `dags/blackswan_main.py` file to start automating your ingestion and dbt models?**
+
+<img width="1707" height="702" alt="image" src="https://github.com/user-attachments/assets/0788d695-9516-4532-ab4d-3f76446119d9" />
 
 ---
 
