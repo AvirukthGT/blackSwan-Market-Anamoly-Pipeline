@@ -49,6 +49,7 @@ services:
   market-news-producer:
     build: .
     container_name: market-news-producer
+    restart: always
     depends_on:
       - broker
     # We override the CMD to run the specific producer script
@@ -61,10 +62,23 @@ services:
   stock-price-producer:
     build: .
     container_name: stock-price-producer
+    restart: always
     depends_on:
       - broker
     # CRITICAL: This line tells it to run the NEW script
     command: python -m producers.stream_prices
+    env_file:
+      - .env
+    environment:
+      BOOTSTRAP_SERVERS: broker:29092
+
+  reddit-producer:
+    build: .
+    container_name: reddit-producer
+    restart: always
+    depends_on:
+      - broker
+    command: python -m producers.stream_reddit
     env_file:
       - .env
     environment:

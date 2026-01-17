@@ -16,3 +16,6 @@ pandas==2.1.4
 numpy==1.26.3
 python-dotenv==1.0.1
 boto3==1.34.0
+yfinance>=0.2.40
+feedparser==6.0.10
+praw==7.7.1
