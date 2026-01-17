@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  # --- Stock Prices ---
+  - name: stg_stock_prices
+    description: "Cleaned stock price data with OHLC and volume."
+    columns:
+      - name: event_id
+        description: "Primary key (Symbol + Timestamp)."
+        tests:
+          - unique
+          - not_null
+
+      - name: symbol
+        description: "Stock ticker symbol."
+        tests:
+          - not_null
+
+      - name: close_price
+        tests:
+          - not_null
+
+      - name: volume
+        tests:
+          - not_null
+          # Built-in check: Volume can't be negative
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                 severity: warn  # Just warn us, don't stop the pipeline
+
+  # --- Market News ---
+  - name: stg_market_news
+    description: "Cleaned RSS news feed."
+    columns:
+      - name: news_id
+        description: "Primary key (URL)."
+        tests:
+          - unique
+          - not_null
+
+      - name: url
+        tests:
+          - not_null
+
+  # --- Social Sentiment ---
+  - name: stg_social_sentiment
+    description: "Reddit posts and calculated sentiment."
+    columns:
+      - name: post_id
+        description: "Primary key (Reddit ID)."
+        tests:
+          - unique
+          - not_null
+
+      - name: sentiment
+        description: "AI-calculated score from -1.0 to 1.0."
+        tests:
+          - not_null

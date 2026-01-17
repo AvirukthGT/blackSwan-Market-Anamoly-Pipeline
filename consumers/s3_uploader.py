@@ -106,7 +106,7 @@ def main():
                 is_old = time_diff > FLUSH_INTERVAL and len(buffer[topic]) > 0
 
                 if is_full or is_old:
-                    # ✅ FIXED
+                    
                     logger.info(
                         f"Flushing {topic} (Items: {len(buffer[topic])}, Age: {int(time_diff)}s)..."
                     )
