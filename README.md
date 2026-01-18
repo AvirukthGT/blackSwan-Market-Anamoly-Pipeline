@@ -94,7 +94,8 @@ graph LR
     G -->|JSON| H[Vue.js Terminal]
 ```
 
-<img width="2449" height="3038" alt="data_model - Page 12" src="https://github.com/user-attachments/assets/6ab18263-6213-4023-a2d1-176c7c83deb5" />
+<img width="2449" height="3038" alt="data_model - Page 12 (1)" src="https://github.com/user-attachments/assets/971f3237-5f93-43bf-9ced-04e368dfa499" />
+
 
 1.  **Extract**: Producers poll external sources (Yahoo Finance, Reddit, AlphaVantage).
 2.  **Buffer**: Messages are serialized and pushed to Kafka topics (`market_prices`, `market_news`).
@@ -257,11 +258,16 @@ This image highlights the development of your **Gold/Marts** layer using the dbt
 * **Clustering**: The `config` block at the top shows `cluster_by=['strategy_name', 'symbol', 'event_time']`, which tells Snowflake how to physically organize the data for maximum query speed.
 
 <img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/34313b03-8128-436e-bbd8-a33942696c2e" />
-(Social Sentiment from news)
-<img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/c62b2e5f-b878-4eaa-a0cf-7c9441eff002" />
-(Stock prices)
-<img width="1415" height="471" alt="Screenshot 2026-01-18 021204" src="https://github.com/user-attachments/assets/f36c3fad-5f77-46dd-b2bc-f5888268a21e" />
+
 (Reddit Comments)
+<img width="1307" height="508" alt="Screenshot 2026-01-18 021218" src="https://github.com/user-attachments/assets/57e8a88b-8d5e-4844-ae06-24df02244e89" />
+
+(Stock prices)
+
+<img width="1773" height="223" alt="Screenshot 2026-01-18 021236" src="https://github.com/user-attachments/assets/0db10c2e-b2f7-4b09-8f53-3647f0245df2" />
+
+(Social Sentiment from news)
+
 ---
 
 ## The Snowflake Storage Layer
